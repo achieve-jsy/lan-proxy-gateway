@@ -1,50 +1,45 @@
-# LAN Proxy Gateway v2.2.4
+# LAN Proxy Gateway v2.2.5
 
-这一版继续收口运行中控制台，重点是把“信息查看”和“交互操作”分清楚。
+这一版主要收口 Windows 兼容性，重点是把 `gateway install` 和 `gateway update` 在 Windows x86_64 上的内核与升级链路补齐。
 
 ## 这一版最重要的变化
 
-### 1. 右侧页面现在会明确标出类型
+### 1. 修复 Windows 的 mihomo 内核解压
 
-- 会直接显示当前是 `信息页`、`可操作页` 还是 `确认页`
-- 不用再看半天文本去猜这页到底能不能操作
+- 官方 `mihomo` 的 Windows zip 里，实际文件名是 `mihomo-windows-amd64-compatible.exe`
+- 之前的逻辑只认 `mihomo.exe`
+- 现在会正确识别官方包里的可执行文件，并统一安装为本地 `mihomo.exe`
 
-### 2. 右侧内容区现在有真正的焦点
+### 2. 修复 Windows 的 gateway update
 
-- 在左侧选中功能后按 `Enter`，焦点会进入右侧内容区
-- 右侧内容区聚焦时，可以用 `↑/↓` 滚动
-- 按 `Esc` 再回到左侧功能列表
+- 之前 Windows 升级时请求的是不带后缀的 `gateway-windows-amd64`
+- GitHub Release 实际资产是 `gateway-windows-amd64.exe`
+- 现在 `gateway update` 会下载正确的 Windows 资产
 
-### 3. 节点入口改成了节点工作台
+### 3. 补了一轮更实的 Windows 验证
 
-- `Ctrl+P` 或 `/nodes` 打开节点工作台
-- 进入后可以切换节点
-- 也可以按 `T` 直接测试当前节点延迟
-- 节点页不再只是提示文字，而是明确的操作页
-
-### 4. 设备和扩展页改成了原生 TUI 页面
-
-- `设备接入` 不再抓 CLI 输出
-- `扩展状态` 也改成统一的 TUI 渲染
-- 页面样式更一致，阅读成本更低
+- 核对了 MetaCubeX 官方 `mihomo v1.19.8` 的 Windows release 资产名
+- 验证了官方 Windows 下载 URL 可访问
+- 验证了官方 zip 的真实内容结构
+- 补上了对应的自动化测试
 
 ## 下载
 
 | 系统 | 直接下载 |
 |---|---|
-| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-darwin-arm64.tar.gz) |
-| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-darwin-amd64.tar.gz) |
-| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-linux-amd64.tar.gz) |
-| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-linux-arm64.tar.gz) |
-| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/gateway-windows-amd64.zip) |
+| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-darwin-arm64.tar.gz) |
+| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-darwin-amd64.tar.gz) |
+| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-linux-amd64.tar.gz) |
+| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-linux-arm64.tar.gz) |
+| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/gateway-windows-amd64.zip) |
 
-校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.4/SHA256SUMS)
+校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.5/SHA256SUMS)
 
 ## 升级建议
 
-从 `v2.2.3` 升级:
+Windows 用户升级到 `v2.2.5` 后，建议顺手验证这两条链路:
 
-1. 使用 `sudo gateway update`
-2. 执行 `sudo gateway console`
-3. 在 TUI 里打开 `节点与测速`
-4. 验证 `Enter` 会把焦点切到右侧，`T` 能测试当前节点延迟
+1. 运行 `gateway install`
+2. 确认能自动下载并安装 `mihomo`
+3. 再运行 `gateway update`
+4. 确认升级链路能拿到新的 `.exe` 版本
