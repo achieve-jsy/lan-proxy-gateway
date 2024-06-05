@@ -1,50 +1,50 @@
-# LAN Proxy Gateway v2.2.12
+# LAN Proxy Gateway v2.2.13
 
-这一版专门修 `gateway update` 的“检查最新版本”链路。问题不在下载资产本身，而是在第一步只盯着 GitHub API；一旦这一步偶发失败，后面的 release 下载根本来不及开始。
+这一版继续补运行中 TUI 的首页体验，重点是把常用入口补齐，并把刷新动作改成不再阻塞界面。
 
 ## 重点变更
 
-### 1. `gateway update` 新增 release 页面回退
+### 1. 首页新增 `设备接入` 和 `功能导航`
 
-- 之前检查最新版本主要依赖 `https://api.github.com/repos/.../releases/latest`
-- 现在会先试 GitHub API；如果失败，再回退到 `https://github.com/.../releases/latest`
-- release 页面本身会跳转到具体 tag，因此可以直接从跳转地址里识别最新版本号
+- 首页左侧菜单现在除了仪表盘、连接与流量、IP 与延迟，还补上了 `设备接入` 和 `功能导航`
+- 这样在 TUI 里就能直接查看手机、Switch、PS5、Apple TV 等设备的接入参数
+- 也能快速回到当前主线和推荐入口，不用再切出去找命令说明
 
-### 2. 下载源候选逻辑统一收口
+### 2. `R` 刷新改成异步执行
 
-- `update` 现在和下载逻辑共用同一套候选 URL 生成方式
-- 直连失败后仍会继续尝试镜像
-- 同时支持通过 `GITHUB_MIRROR` 手动覆盖镜像前缀，方便在特殊网络环境里强制指定下载源
+- 之前刷新摘要时，界面会同步等待采集完成
+- 现在刷新改成后台执行，UI 会继续响应，不会因为一次刷新把整个界面卡住
+- 刷新期间也会保留更明显的进行中提示和收尾脉冲反馈
 
-### 3. 错误信息更可排查
+### 3. 修正首页预览和刷新状态细节
 
-- 之前失败时经常只剩一句“所有下载源均失败”
-- 现在会把直连 / 镜像各自的失败原因一起带出来
-- 这样至少能区分是 GitHub API 不通、镜像握手失败，还是被限流
+- `设备接入` 预览不再错误暗示有二维码页
+- 异步刷新时会对流量趋势数据做独立拷贝，避免后台刷新和前台渲染共享同一段切片状态
+- 这让刷新逻辑更稳，也更适合作为后续继续扩展首页内容的基础
 
-### 4. 测试补齐
+### 4. TUI 回归测试补齐
 
-- 增加了 release 跳转 URL 解析测试
-- 增加了 `GITHUB_MIRROR` 覆盖候选地址的测试
-- 也顺手做了轻量级全仓编译校验，确保这次改动没有影响其它命令
+- 增加了首页新入口的测试
+- 增加了异步刷新状态与结果处理测试
+- 增加了趋势切片深拷贝和首页预览文案的测试
 
 ## 下载
 
 | 系统 | 直接下载 |
 |---|---|
-| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-darwin-arm64.tar.gz) |
-| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-darwin-amd64.tar.gz) |
-| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-linux-amd64.tar.gz) |
-| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-linux-arm64.tar.gz) |
-| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/gateway-windows-amd64.zip) |
+| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-darwin-arm64.tar.gz) |
+| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-darwin-amd64.tar.gz) |
+| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-linux-amd64.tar.gz) |
+| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-linux-arm64.tar.gz) |
+| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/gateway-windows-amd64.zip) |
 
-校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.12/SHA256SUMS)
+校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.13/SHA256SUMS)
 
 ## 建议验证
 
-升级到 `v2.2.12` 后，建议顺手确认这几处：
+升级到 `v2.2.13` 后，建议顺手确认这几处：
 
-1. 执行 `sudo gateway update`，确认能正常显示当前版本和最新版本，而不是停在“获取最新版本失败”
-2. 如果 GitHub API 偶发不稳定，确认仍然能通过 release 页面跳转识别出最新 tag
-3. 执行 `sudo env GITHUB_MIRROR=https://你的镜像/ gateway update`，确认手动镜像覆盖入口可用
-4. 如果更新失败，确认终端错误里能看到更具体的直连 / 镜像失败原因
+1. 运行 `sudo gateway console --tui`，确认首页左侧已经出现 `设备接入` 和 `功能导航`
+2. 进入 `设备接入`，确认能直接看到网关 / DNS / 子网掩码等参数
+3. 在 TUI 里按 `R`，确认刷新期间界面不会卡死，且刷新结束后内容会正常更新
+4. 反复刷新 `连接与流量` 或首页摘要，确认流量趋势显示稳定，没有异常跳变或渲染错乱
