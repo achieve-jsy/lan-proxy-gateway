@@ -1,50 +1,51 @@
-# LAN Proxy Gateway v2.2.10
+# LAN Proxy Gateway v2.2.11
 
-这一版主要修安装脚本下载 release 资产时“看起来像卡死”的问题。核心思路不是单纯拉长超时，而是让脚本更快判断当前下载源是不是靠谱，并在持续低速时尽早切走。
+这一版把 simple 模式继续往“日常真的能用”的方向收。重点不是再堆命令，而是把高频操作收进工作台，并让节点选择本身带上延时、重测和排序能力。
 
 ## 重点变更
 
-### 1. 修正 `install.sh` 长时间卡在 GitHub 资产下载的问题
+### 1. simple 模式帮助收口为高频操作
 
-- 之前的 Unix 安装脚本会优先直连 GitHub release 资产
-- 在“没有断、但速度很慢”的网络里，这一步可能会挂很久，看起来像卡住
-- 现在脚本会先快速探测可用下载源，再进入正式下载
+- 默认 `help` 现在只展示常用入口，例如 `nodes`、`subscription`、`extension`、`chain`
+- 低频命令没有删掉，而是统一收进 `help all`
+- 这样进入 simple 模式后，不会再先看到一整屏命令清单
 
-### 2. 新增下载源探测、低速切换和候选轮换
+### 2. simple 工作台快捷键真正可用
 
-- 安装脚本现在会为 API 和二进制资产构建候选下载源列表
-- 会先用小范围探测请求验证候选源是否可用
-- 正式下载时加入低速阈值判断；如果长时间低于阈值，就会主动失败并切到下一个候选源
-- 仍然支持手动指定 `GITHUB_MIRROR`
+- 打开 `subscription / extension / chain` 后，面板里的 `1 / 2 / A / S / R ...` 现在可以直接输入
+- 缺参数时会继续提示输入，而不是把快捷键当成未知命令
+- 纯命令模式终于更像“工作台”，不需要反复手敲整条命令
 
-### 3. 默认优先 `curl --http1.1`
+### 3. `nodes` 改成可测速的节点工作台
 
-- 在部分 macOS 网络环境里，HTTP/1.1 比默认链路更稳定
-- 安装脚本现在默认会带上 `--http1.1`
-- 如果确实需要改回去，也可以通过环境变量关闭
+- 进入分组后，会展示每个节点的延时
+- 支持输入 `T` 主动重测整组节点
+- 测速完成后按低延时优先排序，失败项放到最后
+- 同时会过滤 `剩余流量 / 套餐到期 / 最新网址 / 重置剩余` 这类订阅说明项，避免它们混进可切换节点列表
 
-### 4. README 和安装提示同步更新
+### 4. README / 命令手册 / release 说明同步更新
 
-- README / README_EN 的安装部分已经补上自动探测下载源的说明
-- 安装完成后的终端提示，也同步成当前版本的默认 simple 模式启动文案
+- README 和 README_EN 现在写明了 simple 模式下的高频帮助、工作台快捷键和 `nodes` 延时排序行为
+- `docs/commands.md` / `docs/en/commands.md` 也补上了 pure console 的节点工作台说明
+- release 说明和版本规划同步更新，方便后面继续按 patch 节奏发版
 
 ## 下载
 
 | 系统 | 直接下载 |
 |---|---|
-| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-darwin-arm64.tar.gz) |
-| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-darwin-amd64.tar.gz) |
-| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-linux-amd64.tar.gz) |
-| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-linux-arm64.tar.gz) |
-| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/gateway-windows-amd64.zip) |
+| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-darwin-arm64.tar.gz) |
+| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-darwin-amd64.tar.gz) |
+| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-linux-amd64.tar.gz) |
+| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-linux-arm64.tar.gz) |
+| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/gateway-windows-amd64.zip) |
 
-校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.10/SHA256SUMS)
+校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v2.2.11/SHA256SUMS)
 
 ## 建议验证
 
-升级到 `v2.2.10` 后，建议顺手确认这几处：
+升级到 `v2.2.11` 后，建议顺手确认这几处：
 
-1. 执行 `./install.sh`，确认会先获取版本，再较快进入可用下载源，而不是长时间停在下载提示上
-2. 在直连 GitHub 偏慢的网络里，确认脚本会自动切换候选源，而不是一直卡在同一个大文件连接上
-3. 执行 `GITHUB_MIRROR=https://hub.gitmirror.com/ ./install.sh`，确认手动镜像入口仍然可用
-4. 安装完成后查看终端提示，确认 `gateway start` 和 `gateway start --tui` 的说明与当前默认模式一致
+1. 执行 `sudo gateway console`，输入 `help`，确认默认只显示高频操作；再输入 `help all`，确认完整命令仍然都在
+2. 输入 `chain`、`extension` 或 `subscription` 进入工作台后，直接按面板里的 `1 / 2 / A / S / R ...`，确认快捷键会被识别并继续提示输入
+3. 输入 `nodes`，选择一个节点分组，确认会展示每个节点延时，并且输入 `T` 后会重新测速并按延时排序
+4. 确认 `剩余流量 / 套餐到期 / 最新网址` 这类订阅说明项不会再混进可切换节点列表
