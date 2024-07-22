@@ -1,47 +1,31 @@
-# LAN Proxy Gateway v3.0.1
+# LAN Proxy Gateway v3.0.2
 
-这一版主要修掉 v3.0.0 控制台在退出 / 重进流程上的体验坑，让「退出操作」和「退出网关」两件事分清楚。
+单行修复版：v3.0.1 里 `gateway -v` 错误输出 `dev` 而不是真实版本号。功能层面和 v3.0.1 完全等价，升级只是为了让版本号能正确显示。
 
 ## 重点变更
 
-### 1. `Q` 只退控制台，不再停 mihomo
+### 修复 `gateway -v` 总是显示 `dev`
 
-- 以前在主菜单按 `Q` 会把后台 mihomo 一起关掉，主人抱怨「我只是退出操作，又不是退出程序」
-- 现在 `Q` 的语义统一为「返回 / 退出控制台」，mihomo 继续在后台跑
-- 想要停 mihomo 请走 `4 启动 / 重启 / 停止` 里的「停止」
+- 根因：`ldflags -X main.version=...` 注入的是 main 包变量，然后 main.go 在运行时才赋值给 `cmd.Version`；但 `cmd.rootCmd.Version` 已经在 cmd 包初始化时按值拷贝了默认的 `"dev"`，main.go 里的赋值来得太晚
+- 修复：ldflags 直接注入 `cmd.Version`，main.go 去中转，版本号在 cobra 读 rootCmd.Version 之前就已经是实际 tag 了
+- 现在 `gateway -v` 应正确输出 `gateway version v3.0.2`
 
-### 2. 主菜单新增 `6 关闭 gateway 并退出`
-
-- 一站式入口：停 mihomo + 退出控制台
-- 有 mihomo 在跑时会二次确认，避免误操作导致 LAN 设备突然断网
-
-### 3. 新进程自动接管后台 mihomo
-
-- 之前 `sudo gateway` 再进来时，主菜单会错显「未启动」，按启动又被 preflight 当成端口冲突、把自己的 mihomo 杀了重启
-- 现在 `engine.New()` 会预先读 `mihomo.pid`，如果后台有活着的 mihomo 就直接接管
-- `Engine.Start()` 检测到已在运行会短路返回，不会再误杀
-- 按「启动」时如果已在跑，会直接提示「已经在运行，无需再启动」
-
-### 4. `gateway install` 装完直接进主菜单
-
-- 以前装完会 `waitForSignal()` 卡在前台等 `Ctrl+C`
-- 现在和默认 `gateway` 一致，装完直接进主菜单，用户可以就地查状态、换源、装 service
+v3.0.1 相对 v3.0.0 的功能变更（Q 只退控制台 / 新增关闭 gateway 入口 / reattach 后台 mihomo / install 进主菜单）全部保留，不赘述。
 
 ## 下载
 
 | 系统 | 直接下载 |
 |---|---|
-| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-darwin-arm64.tar.gz) |
-| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-darwin-amd64.tar.gz) |
-| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-linux-amd64.tar.gz) |
-| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-linux-arm64.tar.gz) |
-| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/gateway-windows-amd64.zip) |
+| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-darwin-arm64.tar.gz) |
+| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-darwin-amd64.tar.gz) |
+| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-linux-amd64.tar.gz) |
+| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-linux-arm64.tar.gz) |
+| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-windows-amd64.zip) |
 
-校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.1/SHA256SUMS)
+校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/SHA256SUMS)
 
 ## 建议验证
 
-1. `sudo gateway` 进主菜单，按 `4 → 1` 启动网关，确认状态变「运行中」
-2. 按 `Q` 退控制台；重新 `sudo gateway` 进来，主菜单应直接显示「运行中」而不是「未启动」
-3. 再按一次 `4 → 1`，应提示「已经在运行，无需再启动」（不会杀掉自己的 mihomo）
-4. 按 `6` 关闭 gateway，确认有二次确认，选 y 后 mihomo 正常停掉、程序退出
+1. `gateway -v` 应显示 `gateway version v3.0.2`
+2. `sudo gateway` 主菜单有第 6 项「关闭 gateway 并退出（停 mihomo）」
+3. `Q` 退控制台后，重新进来应直接显示「运行中」而不是「未启动」
