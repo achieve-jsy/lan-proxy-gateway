@@ -1,51 +1,55 @@
-# LAN Proxy Gateway v3.0.5
+# LAN Proxy Gateway v3.0.6
 
-性能修复版：修掉了国内用户解析国外域名奇慢 / 超时的问题。
+体验版：主菜单 5「日志」加了**易读视图**，把 mihomo 的英文技术日志翻译成中文简要，排问题不用再背术语。
 
-## 修复
+## 重点变更
 
-### fallback DoH 现在走代理组
+### 日志菜单默认易读视图，`r` 可切回原始
 
-mihomo 的 DNS 模板里 fallback 用的是 DoH：
-
-```yaml
-fallback:
-  - https://1.1.1.1/dns-query
-  - https://8.8.8.8/dns-query
+```
+sudo gateway → 5 日志
 ```
 
-之前没有显式 `#Proxy` 标记，mihomo 默认**直连** 1.1.1.1:443 / 8.8.8.8:443 发 DoH。国内用户直连这俩 IP 基本是超时的，于是：
+默认显示翻译后的简要版；按 `r` 在「易读 / 原始」之间切换。`t` 仍然是 tail 跟随。
 
-- `cn.pool.ntp.org` 等需要走 fallback 的域名解析永远超时
-- `translate-pa.googleapis.com`、`googleapis.com` 等国外域名解析反复失败
-- 前台表现：网页打开慢、Google / 翻译打不开、节点延迟探测也被拖慢
+### 翻译效果举例
 
-v3.0.5 给 fallback 加 `#Proxy` 让 DoH 查询走 `Proxy` 代理组，代理到 Cloudflare / Google 后 DoH 就能正常应答了。
-
-### 不是问题的：`DIRECT i/o timeout`
-
-日志里这类行：
+原始行：
 ```
-[TCP] dial DIRECT (match GeoIP/cn) xxx --> 115.190.130.195:21114 error: connect failed
+time="2026-04-21T01:27:55.642635000+08:00" level=warning \
+  msg="[TCP] dial DIRECT (match GeoIP/cn) 198.18.0.1:50931 \
+       --> 115.190.130.195:21114 error: connect failed: dial tcp ...: i/o timeout"
 ```
 
-是 LAN 里某台设备有后台程序在反复连一个已挂 / 拒绝的国内服务器，命中 `GeoIP/cn` 规则走 DIRECT。跟 gateway / 代理都无关，本版**不处理**。
+易读视图：
+```
+🟡 01:27:55  TCP 直连 115.190.130.195:21114 （GeoIP=cn）  → 目标无响应（超时）
+```
 
-## 升级后如何立即生效
+### 识别规则
 
-v3.0.5 的 template 更新只在**下次启动或热重载**时生效。升级完之后任选一种让新配置上线：
+- **路由类型**：`DIRECT` → `直连` / `Proxy` / `具体节点` → `走代理[名字]` / `REJECT` → `拒绝`
+- **匹配规则**：`GeoIP/cn` → `GeoIP=cn` / `Match/` → `兜底` / `DomainSuffix/x` → `域名=x` / `DomainKeyword/x` / `Domain/x` / `IPCIDR/x` / `ProcessName/x`
+- **常见错误**：
+  - `127.0.0.1:xxxx connection refused` → **本机代理拒绝连接（检查代理软件是否启动）**
+  - `connection refused` → 目标主动拒绝（端口上没服务）
+  - `i/o timeout` → 目标无响应（超时）
+  - `resource temporarily unavailable` → 本机 socket 资源暂时不足（重启 mihomo 清一下）
+  - `can't resolve ip` 含 `1.1.1.1` / `8.8.8.8` → **域名解析失败（fallback DoH 没走代理？）**
+  - `network is unreachable` / `no route to host` / `context deadline exceeded` / `EOF` 都有对应中文
 
-- `sudo gateway`（进主菜单）→ 选 `2 流量控制` → `1 切换模式` → 随便选一个模式再切回来（触发热重载）
-- 或 `sudo gateway stop && sudo gateway start`
+- **等级图标**：🔴 error / 🟡 warning / ℹ️ info
+
+识别不了的行**原样返回**，信息不丢。
 
 ## 下载
 
 | 系统 | 直接下载 |
 |---|---|
-| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-darwin-arm64.tar.gz) |
-| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-darwin-amd64.tar.gz) |
-| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-linux-amd64.tar.gz) |
-| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-linux-arm64.tar.gz) |
-| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/gateway-windows-amd64.zip) |
+| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-darwin-arm64.tar.gz) |
+| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-darwin-amd64.tar.gz) |
+| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-linux-amd64.tar.gz) |
+| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-linux-arm64.tar.gz) |
+| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/gateway-windows-amd64.zip) |
 
-校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.5/SHA256SUMS)
+校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.6/SHA256SUMS)
