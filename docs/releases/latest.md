@@ -1,31 +1,61 @@
-# LAN Proxy Gateway v3.0.2
+# LAN Proxy Gateway v3.0.3
 
-单行修复版：v3.0.1 里 `gateway -v` 错误输出 `dev` 而不是真实版本号。功能层面和 v3.0.1 完全等价，升级只是为了让版本号能正确显示。
+这一版重梳理首次安装 → 可用的交互流程：**一条 `curl | bash` 走到能用**，中间不再让用户记命令。
 
 ## 重点变更
 
-### 修复 `gateway -v` 总是显示 `dev`
+### 1. `install.sh` 装完自动接入配置向导
 
-- 根因：`ldflags -X main.version=...` 注入的是 main 包变量，然后 main.go 在运行时才赋值给 `cmd.Version`；但 `cmd.rootCmd.Version` 已经在 cmd 包初始化时按值拷贝了默认的 `"dev"`，main.go 里的赋值来得太晚
-- 修复：ldflags 直接注入 `cmd.Version`，main.go 去中转，版本号在 cobra 读 rootCmd.Version 之前就已经是实际 tag 了
-- 现在 `gateway -v` 应正确输出 `gateway version v3.0.2`
+以前：装完只打印「下一步敲 `sudo gateway install`」，用户要自己记。
+现在：装完二进制后，只要当前 shell 有终端（`/dev/tty` 可用，`curl | bash` 也算），脚本会 `exec sudo gateway install` 直接进入向导。非交互场景（CI / 无终端）仍然只打印提示。
 
-v3.0.1 相对 v3.0.0 的功能变更（Q 只退控制台 / 新增关闭 gateway 入口 / reattach 后台 mihomo / install 进主菜单）全部保留，不赘述。
+### 2. `gateway install` 装完直接退出，不再进主菜单
+
+以前：配完 + 启动 + 打印接入指引后，把用户塞进主菜单，大多数人按 Q 走人。
+现在：打印接入指引后直接退出 shell，mihomo 作为独立进程在后台跑。靠 v3.0.1 引入的 reattach 机制，之后 `sudo gateway` 能无缝接回。
+
+### 3. 向导末尾问「要开机自启吗」（默认 y）
+
+以前：需要用户单独再跑 `sudo gateway service install`，很多人装完就忘了。
+现在：向导最后一步直接问 y/n，默认 y，顺手装 launchd / systemd / schtasks 任务。
+
+### 4. `gateway start` 默认后台化，`--foreground` 留给 service
+
+以前：`sudo gateway start` 会前台阻塞等 `Ctrl+C`（给 launchd 用的），普通用户以为「卡住了」。
+现在：默认启动后立即返回 shell；launchd plist / systemd unit / schtasks 命令统一改成 `start --foreground` 保留阻塞语义。
+
+## 新的 happy path
+
+```
+curl -fsSL https://raw.githubusercontent.com/Tght1211/lan-proxy-gateway/main/install.sh | bash
+  ↓ 自动进入向导（会请求一次 sudo 密码）
+  ↓ 问代理源（只需要选一项）
+  ↓ 装 mihomo 内核 + GeoIP / GeoSite
+  ↓ 启动 mihomo
+  ↓ 问「要开机自启吗」(Y/n)
+  ↓ 打印接入指引（本机 IP 当网关 + DNS）
+  → 回到 shell，mihomo 已经在后台跑了
+```
+
+之后想调整：`sudo gateway` 进主菜单。想停：`sudo gateway stop`。
 
 ## 下载
 
 | 系统 | 直接下载 |
 |---|---|
-| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-darwin-arm64.tar.gz) |
-| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-darwin-amd64.tar.gz) |
-| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-linux-amd64.tar.gz) |
-| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-linux-arm64.tar.gz) |
-| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/gateway-windows-amd64.zip) |
+| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-darwin-arm64) / [gateway-darwin-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-darwin-arm64.tar.gz) |
+| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-darwin-amd64) / [gateway-darwin-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-darwin-amd64.tar.gz) |
+| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-linux-amd64) / [gateway-linux-amd64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-linux-amd64.tar.gz) |
+| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-linux-arm64) / [gateway-linux-arm64.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-linux-arm64.tar.gz) |
+| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-windows-amd64.exe) / [gateway-windows-amd64.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/gateway-windows-amd64.zip) |
 
-校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.2/SHA256SUMS)
+校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.0.3/SHA256SUMS)
 
-## 建议验证
+## 兼容性 / 升级提示
 
-1. `gateway -v` 应显示 `gateway version v3.0.2`
-2. `sudo gateway` 主菜单有第 6 项「关闭 gateway 并退出（停 mihomo）」
-3. `Q` 退控制台后，重新进来应直接显示「运行中」而不是「未启动」
+- 已经装过 service 的用户：原 plist/unit 里是 `start`（前台），升级到 v3.0.3 后 `start` 默认后台了，老 service 会变成「launchd 以为进程早退」→ 被 KeepAlive 反复重启。**升级后建议重装 service**：
+  ```bash
+  sudo gateway service uninstall
+  sudo gateway service install
+  ```
+- 脚本里用 `gateway start` 的：如需保持前台阻塞行为，改成 `gateway start --foreground`。
