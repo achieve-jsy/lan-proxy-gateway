@@ -1,42 +1,36 @@
-# LAN Proxy Gateway v3.3.1
+# LAN Proxy Gateway v3.3.2
 
-紧跟 v3.3.0 的 **首页修正小版本**。两件事：单跳代理时首页不再重复显示「起飞 == 落地」；新增 LAN 代理端口健康探测，mihomo 中途挂掉或端口被抢时首页会立刻红字警告，不再装作一切正常。
+**IPv6 回归修复**。v2.x 时内嵌的 mihomo 模板是默认允许 IPv6 的；v3.0 重写模板时从 v1 legacy 继承了 `ipv6: false` + `dns.ipv6: false`，导致 3.x 上双栈目标（Cloudflare / ChatGPT / Google 等）在 IPv6 优先的客户端上解析不到 AAAA、走 IPv6 偏好的 App 直接超时。本版恢复 v2 行为。
 
 ## 🐛 修复
 
-- **首页单跳代理展示**：没配链式代理（住宅 IP 落地）时，🛫 起飞 和 🛬 落地显示的是同一个节点，用户会以为是 bug。v3.3.1 改为：
-  - 单跳（`takeoff == landing`）→ 一行 **`🌐 出口节点  xxx`**，清爽明确
-  - 链式代理（有 ChainResidential）→ 保留原来的 **`🛫 起飞 + 🛬 落地`** 两行
-  - 「真实出口」（ipinfo.io 查到的 IP / 位置 / ISP）两种场景都在下面一行显示
+- **恢复全局 IPv6 支持** ([embed/template.yaml](embed/template.yaml))：两处强制禁用改回开启
+  - `ipv6: false` → `ipv6: true`（根层，允许 mihomo 处理 IPv6 目标地址）
+  - `dns.ipv6: false` → `dns.ipv6: true`（DNS 返回 AAAA 记录）
+  - 有用户反馈「2.x 版本之前支持 IPv6，更新到 3.x 后不支持了」就是这个回归。
 
-- **LAN 代理端口健康探测**：新增 `mixed` 端口活性探测，`API 通 + mixed 不通`时首页红字告警：
+## 🛡 未改动 / 设计抉择
 
-  ```
-  ⚠ 代理端口不通：LAN 设备（手机 / Switch 等）现在连不上这台网关
-    常见诱因：reload 后 mihomo 没起干净 · TUN strict-route 抢端口 · 防火墙拦 LAN 入站
-    建议：[M] → 4 → 2 重启；还不行就 [M] → 4 → 4 清理残留 mihomo 后再 1 启动
-  ```
+- **TUN 块保持不劫持 IPv6 路由**（`renderTUNBlock` 不写 `inet6-address`）。打开 IPv6 后如果同时让 TUN 接管 IPv6 默认路由，会重演 [issue #2](https://github.com/Tght1211/lan-proxy-gateway/issues/2) 的 Linux 场景：本机 IPv6 对外可达性被切断，LAN 里用 IPv6 ping 不到这台网关。当前选择：IPv6 流量继续走系统默认路由，本机 IPv6 服务保持外部可达，mihomo 只接管 IPv4 TUN 劫持路径（绝大多数用户的 LAN / 家宽在 IPv4 上），v2.x 行为 ≈ 对齐。
 
-  之前若 mihomo 启动阶段通过 API 就绪检测（API 已 listen），随后因其他原因挂掉或 mixed 端口没成功绑上，dashboard 仍会继续显示"● 运行中"的过期状态，直到下次手动操作才发现手机连不上。v3.3.1 把 LAN 入口端口也拉进活性检查，问题当场可见。
+  **如果你确实想让 TUN 也接管 IPv6**（某些纯 IPv6 环境可能需要）：等下一个小版本加 `gateway.tun.ipv6` 开关，或直接自己改 `~/.config/lan-proxy-gateway/mihomo/config.yaml` 里的 `tun:` 块加 `inet6-address: fdfe:dcba:9876::1/126`。
 
 ## ✅ 测试
 
-- 新增 `TestDrawDashboardHopCollapsesWhenNoChain` / `TestDrawDashboardHopShowsBothWhenChain`：两种模式的渲染分支
-- 新增 `TestDrawDashboardWarnsOnMixedPortDown`：端口告警文案
-- macOS 本机端到端验证 LAN 代理链路：本机 + 局域网 IP 走 17890 HTTP 代理访问 gstatic / baidu / claude.ai 全通
+- 新增 `TestRenderIPv6Enabled`：render 输出必须同时包含 `ipv6: true`（全局）和 DNS 块的 `ipv6: true`，且不再残留任何 `ipv6: false`
 - 全仓 `go test ./...` + `-race` 全过
 
 ## 下载
 
 | 系统 | 直接下载 |
 |---|---|
-| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-darwin-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-darwin-arm64.tar.gz) |
-| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-darwin-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-darwin-amd64.tar.gz) |
-| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-linux-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-linux-amd64.tar.gz) |
-| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-linux-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-linux-arm64.tar.gz) |
-| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-windows-amd64.exe) / [.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/gateway-windows-amd64.zip) |
+| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-darwin-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-darwin-arm64.tar.gz) |
+| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-darwin-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-darwin-amd64.tar.gz) |
+| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-linux-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-linux-amd64.tar.gz) |
+| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-linux-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-linux-arm64.tar.gz) |
+| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-windows-amd64.exe) / [.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/gateway-windows-amd64.zip) |
 
-校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.1/SHA256SUMS)
+校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.3.2/SHA256SUMS)
 
 ## 升级
 
@@ -56,4 +50,4 @@ irm https://raw.githubusercontent.com/Tght1211/lan-proxy-gateway/main/install.ps
 gateway start
 ```
 
-完整 v3.3.0 功能列表：[v3.3.0 release notes](./v3.3.0.md)
+旧用户**必须重启 mihomo**（`sudo gateway stop` 然后 `sudo gateway start`，或菜单 `[M] → 4 → 2`）才能让新模板生效，升级完二进制但不重启的话旧 config.yaml 还在 disk 上。
