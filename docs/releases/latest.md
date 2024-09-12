@@ -1,81 +1,111 @@
-# LAN Proxy Gateway v3.4.1
+# LAN Proxy Gateway v3.4.2
 
-修两个 [issue #2](https://github.com/Tght1211/lan-proxy-gateway/issues/2) 里 @lingbaoboy 在 v3.4.0 升级后报的 bug：systemd 启动时机过早导致 `no IPv4 address on enp0s1`，以及 `auto_groups` 开启后 `Auto`/`Fallback` 组在 mihomo UI 看得见但 Proxy 组里选不到。
+修两个 issue：
+
+- [#4](https://github.com/Tght1211/lan-proxy-gateway/issues/4) — 订阅里 `type: anytls` 节点报 `unsupport proxy type: anytls`
+- [#5](https://github.com/Tght1211/lan-proxy-gateway/issues/5) — 严重 bug：`gateway stop` 后局域网访问 docker 容器超时（仅当 docker 端口映射 `host:container` 不一致时复现，例如 `2228:2283`）
 
 ## 🐛 修复
 
-### 1. systemd unit 启动时机
+### 1. anytls 协议不支持 — 升 mihomo
 
-`gateway install` 生成的 `lan-proxy-gateway.service` 改用 network-online.target：
+mihomo 一直 pin 在 `v1.18.6`（2025 年初版本）。`anytls` 协议是 mihomo `v1.19.3` 才加入的，所以订阅里只要有 `type: anytls` 的节点 mihomo 直接拒绝启动。
 
-```ini
-[Unit]
-Description=LAN Proxy Gateway
-After=network-online.target
-Wants=network-online.target
-```
+v3.4.2 升到 **mihomo v1.19.24**（2026-04-20 最新稳定版），同时带来：
 
-之前是 `After=network.target`，这只表示"网络栈起来了"，但接口可能还在 DHCP 拿地址。Debian 13 + 物理 / 虚拟机 DHCP 场景下，`gateway start` 跑在拿到 IP 之前，`detectNetwork()` 直接报错退出，systemd 按 `RestartSec=5` 重试 1～2 次才能成功，期间 journalctl 全是 `no IPv4 address on enp0s1` 噪音。
+- ✅ `anytls` 协议支持（issue #4）
+- ✅ vless reality / hysteria2 / trusttunnel / xhttp 一票稳定性 fix
+- ✅ `CVE-2026-33814` (`net/http`) 等多个安全补丁
+- ✅ vmess http obfs / ss v2ray-plugin 别名兼容
 
-**升级方法（重新生成 service 文件即可）：**
+#### ⚠️ 升级方法（必须主动触发）
+
+`gateway install` **不会**重新下载 mihomo —— 它检查到 `/usr/local/bin/mihomo` 已存在就直接跳过这一步（避免每次重装都拉一遍内核）。所以从 v3.4.1 升到 v3.4.2 的存量用户必须用新加的 `--reinstall-mihomo` 强制覆盖：
 
 ```bash
 sudo gateway stop
 curl -fsSL https://raw.githubusercontent.com/Tght1211/lan-proxy-gateway/main/install.sh | sudo bash
-sudo gateway install   # 重写 /etc/systemd/system/lan-proxy-gateway.service
-sudo systemctl daemon-reload
-sudo systemctl restart lan-proxy-gateway
+sudo gateway install --reinstall-mihomo   # ← 关键：强制覆盖到 v1.19.24
+sudo gateway start
 ```
 
-### 2. `auto_groups` 开启后 Proxy 组没引用新加的自动组
+升级完跑 `mihomo -v` 应当看到 `Mihomo Meta v1.19.24`。
 
-v3.4.0 引入的 `traffic.auto_groups: true` 会向 `proxy-groups:` 追加 `Auto` (url-test) 和 `Fallback` (fallback) 两个兜底组。但用户的 **Proxy** 组（`MATCH,Proxy` 的目标）`proxies` 列表里没有引用它们，导致这两个组在 mihomo UI 列表里能看到，可在 Proxy 组的下拉里选不到——和 @lingbaoboy 反馈的"看得见用不着"对应。
+不想升内核（继续 v1.18.6）的用户可以忽略 `--reinstall-mihomo`，gateway 二进制本身的修复（issue #5、SIGTERM grace）仍然生效。
 
-v3.4.1 起，开启 `auto_groups` 时会**额外**把所有 `type: url-test` / `type: fallback` 的组名 + `DIRECT` 追加到 Proxy 组的 `proxies` 列表（已存在则跳过）。
+### 2. `gateway stop` 后局域网访问 docker 容器超时
 
-**几条设计取舍：**
+#### 病因
 
-- **追加到尾部，不动头部**：mihomo 的 `select` 组第一项是初始默认选择。插队会偷偷改用户当前默认走的节点，所以新项一律 append 到末尾，用户原有的默认不变
-- **DIRECT 也注入**：节点全挂时给本机一个直连兜底，避免基础联网（DNS / 局域网管理 / 自身 SSH）跟着挂掉。用户原本就在 Proxy 里挂了 DIRECT 的不会重复加
-- **只动名为 "Proxy" 的 select 组**：base rules 的 `MATCH,Proxy` 指向它，是 gateway 的"主入口"。订阅里别的自定义分组（区域 / 协议 / 媒体）不动，避免改动用户精心设计的策略结构
-- **看类型不看名字**：用户订阅原本就有 `🚀 自动` (url-test) + `🛡 兜底` (fallback)，开启 `auto_groups` 时不会重复追加，但**会**把这两个已存在的智能组注入 Proxy 组——之前手动加这俩组的人也能享受 v3.4.1 的注入
+mihomo TUN 模式开启 `strict-route: true`（gateway 默认配置）时，会向 Linux 内核加几条高优先级 ip rule：
 
-**升级行为：** 没开 `auto_groups` 的用户行为零变化。开了的用户重启 / 热重载后，`[N] 切换节点` 在 Proxy 组下能看到 Auto / Fallback / DIRECT 多了几个候选项，可以切过去。
+```
+9000:	from all unreachable
+9001:	from all lookup main suppress_prefixlength 0
+```
+
+`pref 9000` 那条 `unreachable` 规则的作用是兜底封掉所有非 TUN 出口。mihomo **正常 SIGTERM 退出时**会自己清这些 rule 出来。但 v3.4.1 的 SIGTERM grace 只有 **3 秒**，遇到 mihomo TUN 拆解动作多 / 路由表复杂 / 系统繁忙时来不及清完就被 SIGKILL，于是 rule 留在那里。
+
+`pref 9000 from all unreachable` 留下后，新进 SYN 包的命中顺序是：
+
+1. PREROUTING（内含 docker DNAT `2228 → container_ip:2283`）—— 没问题
+2. **路由决策时撞 `pref 9000 unreachable`** —— 被打回 ICMP unreachable
+3. 客户端看到的现象：超时
+
+**为什么 host_port == container_port 不复现？** 那种情况下 docker DNAT 不改端口（5001→5001 还是 5001），conntrack 命中既有条目，不走完整路由决策；而端口不一致时（2228→2283）每个新连接都要重新走路由决策，撞 `unreachable` 概率大得多。
+
+`docker compose down/up` 之所以能临时修好，是因为它会重建 docker 网络，间接刷新 conntrack 状态、绕开缓存里那条已经被撞死的路径。
+
+#### 修法（两层防御）
+
+**第一层：SIGTERM grace 3s → 8s**（`internal/engine/process.go`）
+
+让 mihomo 有充足时间自己清掉 ip rule 再退出。正常情况下 mihomo 1-2s 就清完，8s 不会让用户等更久；只有 mihomo 真的卡住时才到 8s 兜底 SIGKILL。
+
+**第二层：兜底主动清理**（`internal/platform/cleanup_linux.go`）
+
+新增 `Platform.PostStopCleanup()` 接口方法，darwin / windows 是 no-op，Linux 上扫描 `ip rule list` + `ip -6 rule list`，把 `pref 9000-9999 + unreachable` 的条目（mihomo 的签名）删掉。`gateway.Disable()` 在 `UnconfigureNAT` + `DisableIPForward` 之后调它，所以**每次 `gateway stop` 都会做这次保险**。
+
+只删 `pref 9000-9999` + `unreachable` 双重特征的，管理员自己加的高 pref 普通规则（比如 `9500: from 10.0.0.0/8 lookup admin_isolation`）一律不动 —— 单元测试有 7 条断言专门盯这条不变量。
 
 ## ✅ 测试
 
-`internal/source/source_autogroups_test.go` 新增 3 个场景：
+| 测试文件 | 覆盖什么 |
+|---|---|
+| `internal/platform/cleanup_parser_test.go` (新增) | 7 个场景：检测 mihomo 签名 / 干净系统返回空 / 不动管理员高 pref 规则 / 拒绝 pref 范围外的 unreachable / 多条 mihomo 残留全报上来 / 空和垃圾输入 |
+| `internal/gateway/gateway_test.go` (新增) | `Gateway.Disable()` 调用顺序 = `UnconfigureNAT` → `DisableIPForward` → `PostStopCleanup`；接口为空时 cleanup 仍执行 |
+| `internal/mihomo/download_test.go::TestPinnedMihomoVersionSatisfiesAnytls` (新增) | 版本回归栏：禁止把 mihomo pin 降回 v1.19 以下，免得 anytls 又挂 |
 
-- `AutoGroupsInjectsExistingSmartGroupsIntoProxy` — 订阅已有 `🚀 自动` (url-test) + `🛡 兜底` (fallback) 但 Proxy 没引用，开启后这两个 emoji 名字会被注入 Proxy
-- `AutoGroupsAugmentsFallbackProxyGroup` — 订阅压根没 Proxy 组（gateway 自动补了一个），增强逻辑也覆盖到这个合成出的 Proxy 组
-- `AutoGroupsOff_ProxyGroupUntouched` — `auto_groups=false` 时 Proxy 组的 `proxies` 列表必须与订阅原值一字不差（升级零侵入）
+`go test -race ./...` 全模块过 + `GOOS={linux,darwin,windows}` 三平台 vet+build 全过。
 
-`AutoGroupsAppendsBoth` 改为同时断言 Proxy 组 `proxies` 含 `n1, n2, n3, Auto, Fallback, DIRECT` 且头部仍是 `n1`。
-
-`go test ./...` + `GOOS=linux go build` 全过。
-
-## 下载
+## 📦 下载
 
 | 系统 | 直接下载 |
 |---|---|
-| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-darwin-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-darwin-arm64.tar.gz) |
-| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-darwin-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-darwin-amd64.tar.gz) |
-| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-linux-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-linux-amd64.tar.gz) |
-| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-linux-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-linux-arm64.tar.gz) |
-| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-windows-amd64.exe) / [.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/gateway-windows-amd64.zip) |
+| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-darwin-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-darwin-arm64.tar.gz) |
+| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-darwin-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-darwin-amd64.tar.gz) |
+| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-linux-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-linux-amd64.tar.gz) |
+| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-linux-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-linux-arm64.tar.gz) |
+| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-windows-amd64.exe) / [.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/gateway-windows-amd64.zip) |
 
-校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.1/SHA256SUMS)
+校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.2/SHA256SUMS)
 
-## 升级
+## 🚀 升级
 
 ```bash
 sudo gateway stop
 curl -fsSL https://raw.githubusercontent.com/Tght1211/lan-proxy-gateway/main/install.sh | sudo bash
-# Linux 用户：systemd unit 这版变了，重装一次 service 文件
-sudo gateway install
+
+# 订阅里有 anytls / vless reality 等新协议节点的话，必须强制重装 mihomo 内核到 v1.19.24
+sudo gateway install --reinstall-mihomo
+
+# 没有上述新协议的话也可以省掉 --reinstall-mihomo，只装 gateway 二进制就行（issue #5 修复仍然生效）
+# sudo gateway install
+
 sudo gateway start
 ```
 
 ## 📝 后续
 
-@lingbaoboy 提的「节点和策略分开，订阅只供节点 / gateway 自己生成完整策略层」仍然是 3.5 的方向。本版继续走最小侵入：保留订阅原结构，只在用户**主动开** `auto_groups` 时补齐 Proxy 组里的可选项。
+- 节点和策略分开（订阅只供节点 + gateway 自己生成完整策略层）仍然规划在 v3.5
+- issue #5 的根因如果不止 ip rule 残留（比如 iptables FORWARD 链 / conntrack 缓存也有副作用），需要用户在 v3.4.2 上验证后回报 —— 拿到 `iptables-save` + `conntrack -L` 的对比就能定位下一步
