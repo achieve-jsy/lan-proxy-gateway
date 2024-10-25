@@ -1,90 +1,72 @@
-# LAN Proxy Gateway v3.4.8
+# LAN Proxy Gateway v3.4.9
 
-**Gateway Web 控制台体验增强版**。这一版把首页改成真正可操作的控制台：代理源、策略组、节点测速、接入设备、TUN 和局域网代理服务都可以在 WebUI 里直接管理。
-
-## 新增 / 改进
-
-- **新增 Gateway Web 控制台入口**
-
-  `gateway start` 现在会同时启动 Gateway 自带 WebUI（默认 `http://<gatewayIP>:19091/`），启动横幅会打印带 `#token=...` 的完整访问地址。也可以用 `gateway webui` 随时重新查看当前地址。
-
-- **首页代理源可视化与快捷切换**
-
-  首页显示当前代理源类型、路径/订阅详情、健康状态和错误摘要；有多个有效 source profile 时可直接在首页切换，没有其它源时提供到配置库的入口。
-
-- **Clash 风格策略组控制**
-
-  首页不再展示单个“生效分组”。WebUI 会从 Mihomo `/proxies` 读取所有 Selector 策略组，提供可滚动分组列表、当前分组节点、快捷节点切换和一键测速；完整分组/节点列表仍可跳到“路由矩阵”。
-
-- **透明代理与代理服务不再互斥**
-
-  TUN 透明代理和 HTTP/SOCKS5 `mixed-port` 现在是两个独立能力。首页“接入能力”可分别进入设置，TUN 可独立开关，代理服务可独立开关。
-
-- **局域网代理服务支持认证**
-
-  新增 `runtime.proxy_service` 配置：
-
-  ```yaml
-  runtime:
-    proxy_service:
-      enabled: true
-      username: ""
-      password: ""
-  ```
-
-  用户名/密码留空时保持无认证；填写后会渲染 Mihomo `authentication`。关闭代理服务时会渲染 `mixed-port: 0`。
-
-- **实时看板改为接入设备数**
-
-  首页不再把每条网络请求算成“活跃连接”，而是按唯一来源 IP 统计接入设备数；点击看板仍可查看设备和连接明细。
-
-- **内置规则集可完整查看和复制**
-
-  WebUI 规则集行支持展开完整规则列表、滚动查看和一键复制，便于确认内置规则到底匹配什么。
-
-- **左上角版本与手动升级入口**
-
-  版本号现在展示在左上角，点击可检查 GitHub 最新 release；有新版本时可从 WebUI 触发升级流程。
+**`gateway update` 代理穿透修复版**。如果你曾在 HTTPS 代理下跑 `gateway update` 看到一堆 `EOF` 或 `malformed HTTP response "\x00\x00\x12\x04..."`，这版彻底修好了那条路径。
 
 ## 修复
 
-- 修复 WebUI 关闭透明代理后状态仍显示开启的问题。本机上游代理（例如 `127.0.0.1:7890`）现在只会在 TUN 本来开启时设置 `bypass_local` 防自循环，不再覆盖用户显式关闭 TUN 的选择。
-- 修正首页能力文案：不再用旧 `gateway.mode` 显示“端口模式 · 零干扰”，而是按实际能力显示“透明代理已启用 / 代理服务已启用”。
-- 修复快速策略组区域在分组很多时不适合横向固定卡片的问题，改为可扩展的分组列表 + 当前分组节点视图。
+- **`gateway update` 在 HTTPS 代理下不再 EOF**
+
+  `cmd/update.go` 里 `tr.ForceAttemptHTTP2 = false` 原本想禁用 HTTP/2，但 `http.DefaultTransport.(*http.Transport).Clone()` 之后 `TLSNextProto` 是空 map（非 nil），TLS ALPN 仍会协商成 h2，结果传输层握手成 h2、应用层却按 h1 读响应。所有 GitHub release URL 走代理都拿到 `EOF`，最后一个镜像源直接被 HTTP/2 SETTINGS 帧打成 `malformed HTTP response`。删掉这行，让 Go transport 默认处理 HTTP/2。
+
+- **`sudo gateway update` 会先在用户身份下下载，再 elevate 安装**
+
+  以前 `gateway update` 一进来就 `maybeElevate()`，整个流程在 root 身份跑。macOS sudoers 默认 `env_reset` 会清掉 `HTTPS_PROXY` / `HTTP_PROXY`（即便 `--preserve-env=` 也会被默认策略静默挡掉），root 进程没代理变量，下载/查版本必失败。
+
+  重构后的流程：
+
+  1. **用户身份阶段**：版本查询 + 下载到 `/tmp` —— 代理变量完整可用。
+  2. **切换到 sudo**：通过隐藏 flag `--prefetched-tag` / `--prefetched-asset` 把下载好的临时文件路径透传给 root 子进程。
+  3. **Root 阶段**：仅 stop / 替换二进制 / restart，不再需要联网。
+
+  对应推荐写法是 `gateway update`（不带 sudo），程序会在需要 root 时自己请求 sudo 并保留你的代理设置。如果你已经习惯 `sudo gateway update`，命令仍能跑，但代理变量缺失时会打一条黄色提示，建议改用不带 sudo 的方式。
+
+- **`gateway update` 拉 latest 时新增 release 页面跳转回退**
+
+  GitHub API `/releases/latest` 即便走代理也偶尔会被节流到 5xx 或被某些镜像源穿透成乱码。新加一条回退：API 全部失败时改抓 `https://github.com/<repo>/releases/latest`，沿着 302 取最终 URL 里的 tag。
+
+## 内部改进
+
+- **`cmd/update.go` 重构**：提取 `prepareUpdateBinary` / `stopGatewayBeforeUpdate` / `restartGatewayAfterUpdate` 三个 helper + 三个字符串常量（`updateUserAgentHeader` / `updateUserAgentValue` / `updateErrCandidateFmt`），消化掉 SonarQube 之前的 cognitive-complexity 和重复字面量警告。纯重构，无行为变化。
+- **`legacy/` 标注归档**：新加 `legacy/README.md` 说明这是历史归档（`legacy/v1/` 是独立 Go module、shell 脚本预 Go 时代），不维护、不引入、不外链。
+- **辅助脚本统一到 scripts/**：`install-mihomo.sh` / `download-mihomo.sh` 移入 `scripts/`，根目录保留 4 行 wrapper 兼容旧调用（`bash install-mihomo.sh` 依然可用）；`script-demo.js` 改名为 `examples/extension.js`，`docs/advanced.md` 与 `docs/en/advanced.md` 同步更新。`install.sh` / `install.ps1`（README 与多版本 release notes 引用的公开 install URL）和 `dev.sh` / `dev.ps1`（README_EN 文档化的开发入口）保持在根目录不动。
+- **`make clean` 扩容**：除 `dist/`、`gateway` 之外，还清 `.tmp/`、`.cache/`、`.try/`、`logs/*.log` 和散落的 `.DS_Store`；不会动 `handoff_unfinished_tasks.txt` 这类人工接力文档。
 
 ## 测试
 
-- `node --check internal/webui/static/app.js`
-- `go test ./internal/config ./internal/engine ./internal/app ./internal/webui`
 - `go test ./...`
-
-新增 / 更新测试覆盖：
-
-- 本机 loopback external 源不会强制把关闭的 TUN/DNS 改回开启
-- TUN 开启时本机 loopback external 源仍会强制 `bypass_local`，避免自代理回环
-- 代理服务认证与关闭状态的 Mihomo 渲染
-- WebUI API、token 鉴权、静态资源和控制路由
+- 手动验证 `HTTPS_PROXY=http://127.0.0.1:7897 gateway update latest` 能正确通过代理拿到 latest tag 并完成下载。
+- `bash -n install-mihomo.sh && bash -n scripts/install-mihomo.sh && bash -n download-mihomo.sh && bash -n scripts/download-mihomo.sh` 全部通过；wrapper 实测能 exec 到目标。
 
 ## 下载
 
 | 系统 | 直接下载 |
 |---|---|
-| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-darwin-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-darwin-arm64.tar.gz) |
-| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-darwin-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-darwin-amd64.tar.gz) |
-| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-linux-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-linux-amd64.tar.gz) |
-| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-linux-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-linux-arm64.tar.gz) |
-| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-windows-amd64.exe) / [.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/gateway-windows-amd64.zip) |
+| macOS Apple Silicon | [gateway-darwin-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-darwin-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-darwin-arm64.tar.gz) |
+| macOS Intel | [gateway-darwin-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-darwin-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-darwin-amd64.tar.gz) |
+| Linux x86_64 | [gateway-linux-amd64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-linux-amd64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-linux-amd64.tar.gz) |
+| Linux ARM64 | [gateway-linux-arm64](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-linux-arm64) / [.tar.gz](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-linux-arm64.tar.gz) |
+| Windows x86_64 | [gateway-windows-amd64.exe](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-windows-amd64.exe) / [.zip](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/gateway-windows-amd64.zip) |
 
-校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.8/SHA256SUMS)
+校验文件: [SHA256SUMS](https://github.com/Tght1211/lan-proxy-gateway/releases/download/v3.4.9/SHA256SUMS)
 
 ## 升级
 
 ```bash
-sudo gateway update
+gateway update
 ```
 
-或者指定版本：
+**注意**：本版恰好修了"`sudo gateway update` 在 macOS 默认 sudoers 下丢失代理变量"的问题，但推荐写法是**不预先 sudo**，让程序自己决定何时切换 sudo —— 这样代理变量保留得最干净。
+
+或指定版本：
 
 ```bash
-sudo gateway update v3.4.8
+gateway update v3.4.9
 ```
+
+如果你卡在 v3.4.8 以前的版本，升级 `gateway update` 自身的修复需要先一次"重装"才会生效：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tght1211/lan-proxy-gateway/main/install.sh | sudo bash
+```
+
+之后再用的 `gateway update` 就走新流程了。
