@@ -1,9 +1,9 @@
 # LAN Proxy Gateway
 
-[![Release](https://img.shields.io/github/v/release/Tght1211/lan-proxy-gateway)](https://github.com/Tght1211/lan-proxy-gateway/releases)
+[![Release](https://img.shields.io/github/v/release/achieve-jsy/lan-proxy-gateway)](https://github.com/achieve-jsy/lan-proxy-gateway/releases)
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev/)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)]()
-[![License](https://img.shields.io/github/license/Tght1211/lan-proxy-gateway)](LICENSE)
+[![License](https://img.shields.io/github/license/achieve-jsy/lan-proxy-gateway)](LICENSE)
 
 > **Turn one computer into a LAN-wide proxy gateway.** Configure proxies once on the gateway machine, and every device in your house (phone / Switch / PS5 / Apple TV / smart TV) uses them — **no proxy app needed on each device**.
 
@@ -34,10 +34,10 @@ flowchart LR
 
 ```bash
 # macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/Tght1211/lan-proxy-gateway/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/achieve-jsy/lan-proxy-gateway/main/install.sh | bash
 
 # Windows (Administrator PowerShell)
-irm https://raw.githubusercontent.com/Tght1211/lan-proxy-gateway/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/achieve-jsy/lan-proxy-gateway/main/install.ps1 | iex
 ```
 
 The script walks you through a setup wizard (proxy source → start → optional auto-start). If GitHub is slow from your network, set `GITHUB_MIRROR=https://your-mirror/`, or if you already have Clash running locally, `export HTTP_PROXY=http://127.0.0.1:7897` first.
@@ -133,7 +133,7 @@ gateway update v3.4.3          # specific tag (or rollback)
 First time upgrading from a pre-v3.4.3 install (no `gateway update` subcommand yet), just re-run the install script — it overwrites in place and preserves your `gateway.yaml`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Tght1211/lan-proxy-gateway/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/achieve-jsy/lan-proxy-gateway/main/install.sh | sudo bash
 ```
 
 ---
@@ -154,9 +154,9 @@ The Go build cache defaults to `.cache/go-build` inside the repo to avoid global
 
 ## 📜 License
 
-[MIT](LICENSE) © 2025-2026 [Tght1211](https://github.com/Tght1211)
+[MIT](LICENSE) © 2025-2026 [Tght1211](https://github.com/achieve-jsy)
 Built on [mihomo](https://github.com/MetaCubeX/mihomo) + [metacubexd](https://github.com/MetaCubeX/metacubexd).
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Tght1211/lan-proxy-gateway&type=Date)](https://star-history.com/#Tght1211/lan-proxy-gateway&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=achieve-jsy/lan-proxy-gateway&type=Date)](https://star-history.com/#achieve-jsy/lan-proxy-gateway&Date)
